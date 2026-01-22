@@ -1,0 +1,39 @@
+//func main1() {
+//	network, wg, clientConnection, gw := BlockchainInit()
+//	defer clientConnection.Close()
+//	defer gw.Close()
+//	// Override default values for chaincode and channel name as they may differ in testing contexts.
+//
+//	contract := network.GetContract("IoTTest5")
+//	//ContractUploadDeviceData(contract, 6.6, time.Now().Unix()*1000)
+//
+//	//ContractUploadDeviceData(contract, 2.2, time.Now().Unix()*1000)
+//
+//	//ContractUploadDeviceData(contract, 3.2, time.Now().Unix()*1000)
+//	go PeriodicQueryPLC(contract)
+//	go ListenEvent(network)
+//	//IoT(contract)
+//	wg.Wait()
+//
+//}
+//	func LastMain() {
+//		network, _, clientConnection, gw := BlockchainInit()
+//		defer clientConnection.Close()
+//		defer gw.Close()
+//		// Override default values for chaincode and channel name as they may differ in testing contexts.
+//
+//		contract := network.GetContract("IoTTest5")
+//		ContractUploadDeviceData(contract, 6.6, time.Now().Unix()*1000)
+//
+//		//ContractUploadDeviceData(contract, 2.2, time.Now().Unix()*1000)
+//
+//		//ContractUploadDeviceData(contract, 3.2, time.Now().Unix()*1000)
+//
+//		//IoT(contract)
+//
+//		//getAllAssets(contract)
+//		//createAsset(contract)
+//		//readAssetByID(contract)
+//		//transferAssetAsync(contract)
+//		//exampleErrorHandling(contract)
+//	}

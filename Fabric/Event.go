@@ -3,6 +3,7 @@ package Fabric
 import (
 	"FabricInterface/Crypto"
 	pb "FabricInterface/Protoc"
+	"FabricInterface/ThingsBoard"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"github.com/hyperledger/fabric-gateway/pkg/client"
 	"google.golang.org/protobuf/proto"
 	"log"
+	"strconv"
 )
 
 func ListenEvent(network *client.Network, client pb.ProtoServiceClient) {
@@ -45,7 +47,9 @@ func ListenEvent(network *client.Network, client pb.ProtoServiceClient) {
 					log.Fatal("CTMessage UnSerialize Error:", err)
 				}
 				str := Crypto.GetDecData(client, &ct)
-				fmt.Println(string(str))
+				data, _ := strconv.ParseFloat(str, 32)
+				ThingsBoard.SendToThingsBoard(float32(data), d.Time)
+				fmt.Println(string(str), d.Time)
 
 			}
 		case <-ctx.Done():
