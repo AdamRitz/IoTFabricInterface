@@ -8,7 +8,9 @@ package main
 
 import (
 	"FabricInterface/Crypto"
+	"FabricInterface/DB"
 	"FabricInterface/Fabric"
+	"FabricInterface/Logger"
 	pb "FabricInterface/Protoc" //
 	"crypto/rand"
 	"fmt"
@@ -18,7 +20,6 @@ import (
 	"log"
 	"math/big"
 	"strconv"
-
 	"time"
 )
 
@@ -47,7 +48,7 @@ func Sensor(contract *client.Contract, client pb.ProtoServiceClient) {
 		time.Sleep(1 * time.Second)
 	}
 }
-func main() {
+func pastMain() {
 	client := Init("127.0.0.1:50051")
 	network, wg, clientConnection, gw := Fabric.BlockchainInit()
 	defer clientConnection.Close()
@@ -56,6 +57,26 @@ func main() {
 	go Fabric.ListenEvent(network, client)
 	time.Sleep(2 * time.Second)
 	go Sensor(contract, client)
+
+	wg.Wait()
+}
+func main() {
+	//client := Init("127.0.0.1:50051")
+	// 初始化 Logger
+	Logger.InitLogger()
+	// 初始化区块链
+	network, wg, clientConnection, gw := Fabric.BlockchainInit()
+	defer clientConnection.Close()
+	// 初始化合约
+	//contract := network.GetContract("IoT4")
+	//go Fabric.ListenEvent(network, client)
+	defer gw.Close()
+	// 初始化数据库
+	DB.InitMySQL()
+
+	go Fabric.ListenBlockEvent(network)
+	time.Sleep(2 * time.Second)
+	//go Sensor(contract, client)
 
 	wg.Wait()
 }

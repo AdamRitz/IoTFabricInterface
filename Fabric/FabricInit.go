@@ -84,11 +84,12 @@ func newGrpcConnection() *grpc.ClientConn {
 
 // newIdentity creates a client identity for this Gateway connection using an X.509 certificate.
 func newIdentity() *identity.X509Identity {
+	// 读取文件系统的证书，
 	certificatePEM, err := os.ReadFile(certPath)
 	if err != nil {
 		panic(fmt.Errorf("failed to read certificate file: %w", err))
 	}
-
+	// 通过 identity.Certification 方法把证书文件变为身份。
 	certificate, err := identity.CertificateFromPEM(certificatePEM)
 	if err != nil {
 		panic(err)
@@ -104,16 +105,17 @@ func newIdentity() *identity.X509Identity {
 
 // newSign creates a function that generates a digital signature from a message digest using a private key.
 func newSign() identity.Sign {
+	// 加载密钥文件
 	privateKeyPEM, err := os.ReadFile(keyPath)
 	if err != nil {
 		panic(fmt.Errorf("failed to read private key file: %w", err))
 	}
-
+	// 检查密钥格式
 	privateKey, err := identity.PrivateKeyFromPEM(privateKeyPEM)
 	if err != nil {
 		panic(err)
 	}
-
+	// 绑定到签名函数
 	sign, err := identity.NewPrivateKeySign(privateKey)
 	if err != nil {
 		panic(err)
