@@ -178,6 +178,7 @@ func (s *SmartContract) SubmitTelemetry(ctx contractapi.TransactionContextInterf
 	return nil
 }
 
+// 提交命令
 func (s *SmartContract) SubmitCommand(ctx contractapi.TransactionContextInterface, deviceID string, commandJSON string) error {
 	if deviceID == "" {
 		return fmt.Errorf("deviceID is required")
@@ -244,15 +245,18 @@ func (s *SmartContract) SubmitCommand(ctx contractapi.TransactionContextInterfac
 	return s.saveState(ctx, state)
 }
 
+// 获取设备状态
 func (s *SmartContract) GetDeviceState(ctx contractapi.TransactionContextInterface, deviceID string) (*DeviceState, error) {
 	return s.getOrInitState(ctx, deviceID)
 }
 
 func (s *SmartContract) getOrInitState(ctx contractapi.TransactionContextInterface, deviceID string) (*DeviceState, error) {
+	// 根据 ID 查询设备状态
 	b, err := ctx.GetStub().GetState("state:" + deviceID)
 	if err != nil {
 		return nil, err
 	}
+	// 如果没有状态，创建空状态
 	if b == nil {
 		return &DeviceState{
 			DeviceID:    deviceID,
@@ -278,6 +282,7 @@ func (s *SmartContract) saveState(ctx contractapi.TransactionContextInterface, s
 	return ctx.GetStub().PutState("state:"+st.DeviceID, b)
 }
 
+// 对比策略，看是否触发
 func (s *SmartContract) evaluatePolicies(
 	ctx contractapi.TransactionContextInterface,
 	eventType string,
