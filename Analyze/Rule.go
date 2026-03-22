@@ -1,4 +1,4 @@
-package DAC
+package DataAnalyze
 
 import (
 	"errors"
@@ -109,6 +109,7 @@ type Condition struct {
 	Tolerance float64 `json:"tolerance,omitempty"`
 }
 
+// 判断结果结构体
 type ConditionResult struct {
 	Field      string     `json:"field"`
 	Operator   Operator   `json:"operator"`
@@ -126,22 +127,16 @@ type EvaluationResult struct {
 	RuleName       string            `json:"ruleName"`
 	Passed         bool              `json:"passed"`
 	NodeLogic      LogicOp           `json:"nodeLogic"`
-	ConditionTrace []ConditionResult `json:"conditionTrace"`
+	ConditionTrace []ConditionResult `json:"conditionTrace"` // 统计哪些节点有问题
 	Message        string            `json:"message"`
 	EvaluatedAt    time.Time         `json:"evaluatedAt"`
 }
 
-// EvaluateRuleSet
-// 作用：
-// 对一条完整规则进行计算，得到该规则是否命中以及每个条件的判断轨迹
-// 参数含义：
-// rule：待执行的规则集
-// current：当前上传的数据集合，键为字段名，值为字段值
-// previous：上一份历史数据集合，用于变化量和前后对比判断
-// 返回值：
-// EvaluationResult：规则的最终判断结果
-// error：执行过程中出现的错误
+// EvaluateRuleSet 作用： 对一条完整规则进行计算，得到该规则是否命中以及每个条件的判断轨迹
+// 参数含义： rule：待执行的规则集 current：当前上传的数据集合，键为字段名，值为字段值 previous：上一份历史数据集合，用于变化量和前后对比判断
+// 返回值： EvaluationResult：规则的最终判断结果  error：执行过程中出现的错误
 func EvaluateRuleSet(rule RuleSet, current map[string]any, previous map[string]any) (EvaluationResult, error) {
+	// 规则未启动，则直接返回结果
 	if !rule.Enabled {
 		return EvaluationResult{
 			RuleID:      rule.ID,
@@ -158,7 +153,7 @@ func EvaluateRuleSet(rule RuleSet, current map[string]any, previous map[string]a
 		Previous: previous,
 		Now:      time.Now(),
 	}
-
+	// 核心函数：执行根节点
 	passed, trace, err := EvaluateNode(rule.Root, ctx)
 	if err != nil {
 		return EvaluationResult{}, err
@@ -168,7 +163,7 @@ func EvaluateRuleSet(rule RuleSet, current map[string]any, previous map[string]a
 	if !passed {
 		msg = "rule not matched"
 	}
-
+	// 返回结果
 	return EvaluationResult{
 		RuleID:         rule.ID,
 		RuleName:       rule.Name,
@@ -260,9 +255,7 @@ func EvaluateNode(node RuleNode, ctx EvalContext) (bool, []ConditionResult, erro
 // 参数含义：
 // cond：待执行的单条条件
 // ctx：本次计算使用的上下文，包括当前数据、历史数据和当前时间
-// 返回值：
-// ConditionResult：该条件的判断结果和说明信息
-// error：执行过程中出现的错误
+// 返回值： ConditionResult：该条件的判断结果和说明信息  error：执行过程中出现的错误
 func EvaluateCondition(cond Condition, ctx EvalContext) (ConditionResult, error) {
 	// 创建结果结构体
 	result := ConditionResult{

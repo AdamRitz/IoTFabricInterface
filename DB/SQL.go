@@ -46,7 +46,7 @@ func BlockDataInsert(TxNum uint64, blockNum int) {
 // 七日交易数据查询函数
 //
 //	作用：查询最近七天的区块链交易数据。
-//	调用者：Web/Web.go 给前端渲染的时候会调用这个函数。
+//	调用者：Web/Export.go 给前端渲染的时候会调用这个函数。
 type TxDayStat struct {
 	Day      string `json:"day"`
 	TotalTxs int64  `json:"total_txs"`
@@ -98,7 +98,7 @@ ORDER BY days.day;
 // 区块高度查询
 //
 //	作用：查询最近当前区块链高度。
-//	调用者：Web/Web.go 给前端渲染的时候会调用这个函数。
+//	调用者：Web/Export.go 给前端渲染的时候会调用这个函数。
 func QueryChainHeight() (int, error) {
 	SQL := "SELECT MAX(BlockNumber) AS block_number FROM blockdata"
 	rows, err := MySQL.Query(SQL)
@@ -166,7 +166,7 @@ type AddDeviceReq struct {
 
 // 函数名：添加预言机
 // 作用：添加预言机到区块链，现在是 mysql 实现版本。
-// 调用者：Web/Web.go
+// 调用者：Web/Export.go
 func AddOracle(req AddOracleReq) error {
 	if req.OracleID == "" || req.OracleName == "" || req.OrgName == "" || req.PublicKey == "" || req.Endpoint == "" {
 		return errors.New("missing required fields")
@@ -190,7 +190,7 @@ VALUES (?, ?, ?, ?, ?, ?, 'online')
 
 // 函数名：查询预言机是否存在
 // 作用：查询预言机是否存在。
-// 调用者：Web/Web.go
+// 调用者：Web/Export.go
 func OracleExists(oracleID string) (bool, error) {
 	SQL := `SELECT COUNT(1) FROM oracle_info WHERE oracle_id = ?`
 	var cnt int
@@ -203,7 +203,7 @@ func OracleExists(oracleID string) (bool, error) {
 
 // 函数名：添加预言机设备。
 // 作用：添加预言机管理的设备
-// 调用者：Web/Web.go
+// 调用者：Web/Export.go
 func AddOracleDevice(req AddDeviceReq) error {
 	if req.OracleID == "" || req.DeviceID == "" || req.DeviceName == "" || req.DeviceType == "" || req.DevicePublicKey == "" || req.DeviceAddress == "" {
 		return errors.New("missing required fields")
