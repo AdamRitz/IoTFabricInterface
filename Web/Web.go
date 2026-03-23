@@ -1,6 +1,7 @@
 package Web
 
 import (
+	DataAnalyze "FabricInterface/Analyze"
 	"FabricInterface/DB"
 	"database/sql"
 	"errors"
@@ -25,7 +26,7 @@ func InitWeb() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
-
+	DataAnalyze.RegisterRuleRoutes(r)
 	r.GET("/GetTxNumber7", GetTxNumber7)
 	r.GET("/GetChainHeight", GetChainHeight)
 
