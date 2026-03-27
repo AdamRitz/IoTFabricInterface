@@ -10,9 +10,9 @@ import (
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 )
 
-type SmartContract struct {
-	contractapi.Contract
-}
+//type SmartContract struct {
+//	contractapi.Contract
+//}
 
 type Condition struct {
 	Source string      `json:"source"` // current | state

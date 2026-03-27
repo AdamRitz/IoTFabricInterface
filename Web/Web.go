@@ -26,11 +26,13 @@ func InitWeb() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
-	DataAnalyze.RegisterRuleRoutes(r)
+
+	ruleGroup := r.Group("/rule")
+	DataAnalyze.RegisterRuleRoutes(ruleGroup)
+
 	r.GET("/GetTxNumber7", GetTxNumber7)
 	r.GET("/GetChainHeight", GetChainHeight)
 
-	// 新增的 3 个接口
 	r.POST("/oracle/add", AddOracle)
 	r.GET("/oracle/list", ListOracles)
 	r.POST("/oracle/device/add", AddOracleDevice)
@@ -134,7 +136,6 @@ func AddOracle(c *gin.Context) {
 		return
 	}
 
-	// 中心化版本，先返回占位链上信息
 	c.JSON(http.StatusOK, gin.H{
 		"status":      "success",
 		"message":     "预言机添加成功",

@@ -1,23 +1,13 @@
 package DataAnalyze
 
 import (
-	"database/sql"
+	"FabricInterface/DB"
+	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
-
-type RuleHandler struct {
-	db *sql.DB
-}
-
-func NewRuleHandler(db *sql.DB) *RuleHandler {
-	return &RuleHandler{
-		db: db,
-	}
-}
-
-// --------------------------- 请求结构体（BEGIN） ---------------------------
 
 type CreateRuleRequest struct {
 	ID          string   `json:"id"`
@@ -37,43 +27,32 @@ type ValidateRuleRequest struct {
 	Expression string `json:"expression"`
 }
 
-// --------------------------- 请求结构体（END） -----------------------------
-
-// CreateRule 创建规则
-func (h *RuleHandler) CreateRule(c *gin.Context) {
+func CreateRule(c *gin.Context) {
 	var req CreateRuleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "请求参数格式错误: " + err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "请求参数格式错误: " + err.Error()})
 		return
 	}
 
+	req.ID = strings.TrimSpace(req.ID)
+	req.Name = strings.TrimSpace(req.Name)
+	req.Description = strings.TrimSpace(req.Description)
+	req.Expression = strings.TrimSpace(req.Expression)
+
 	if req.ID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "规则 id 不能为空",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "规则 id 不能为空"})
 		return
 	}
 	if req.Name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "规则名称不能为空",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "规则名称不能为空"})
 		return
 	}
 	if req.Expression == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "规则表达式不能为空",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "规则表达式不能为空"})
 		return
 	}
 
-	rule, err := CreateAndSaveRuleFromExpression(
-		h.db,
+	rule, err := CreateRuleSetFromExpression(
 		req.ID,
 		req.Name,
 		req.Description,
@@ -82,14 +61,39 @@ func (h *RuleHandler) CreateRule(c *gin.Context) {
 		req.Tags,
 	)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "创建规则失败: " + err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "创建规则失败: " + err.Error()})
+		return
+	}
+	rule.Enabled = req.Enabled
+
+	ruleBytes, err := json.Marshal(rule)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "规则序列化失败: " + err.Error()})
 		return
 	}
 
-	// 这里前端展示仍然需要 expression，所以直接回传
+	tagsBytes, err := json.Marshal(rule.Tags)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "规则标签序列化失败: " + err.Error()})
+		return
+	}
+
+	if err := DB.UpsertRule(DB.RuleRecord{
+		ID:          rule.ID,
+		Name:        rule.Name,
+		Description: rule.Description,
+		Expression:  req.Expression,
+		RuleJSON:    string(ruleBytes),
+		Enabled:     rule.Enabled,
+		Priority:    rule.Priority,
+		TagsJSON:    string(tagsBytes),
+		CreatedAt:   rule.CreatedAt,
+		UpdatedAt:   rule.UpdatedAt,
+	}); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "创建规则失败: " + err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "规则创建成功",
@@ -107,117 +111,92 @@ func (h *RuleHandler) CreateRule(c *gin.Context) {
 	})
 }
 
-// ListRule 查询规则列表
-func (h *RuleHandler) ListRule(c *gin.Context) {
-	rules, err := ListRulesFromMySQL(h.db)
+func ListRule(c *gin.Context) {
+	records, err := DB.ListRules()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "查询规则列表失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "查询规则列表失败: " + err.Error()})
 		return
 	}
 
-	list := make([]gin.H, 0, len(rules))
-	for _, rule := range rules {
-		_, expr, err := GetRuleByID(h.db, rule.ID)
-		if err != nil {
-			expr = ""
+	list := make([]gin.H, 0, len(records))
+	for _, record := range records {
+		var rule RuleSet
+		if err := json.Unmarshal([]byte(record.RuleJSON), &rule); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "解析规则数据失败: " + err.Error()})
+			return
 		}
 
 		list = append(list, gin.H{
 			"id":          rule.ID,
 			"name":        rule.Name,
 			"description": rule.Description,
-			"expression":  expr,
-			"enabled":     rule.Enabled,
-			"priority":    rule.Priority,
+			"expression":  record.Expression,
+			"enabled":     record.Enabled,
+			"priority":    record.Priority,
 			"tags":        rule.Tags,
-			"createdAt":   rule.CreatedAt,
-			"updatedAt":   rule.UpdatedAt,
+			"createdAt":   record.CreatedAt,
+			"updatedAt":   record.UpdatedAt,
 		})
+	}
+
+	todayCount, err := DB.QueryTodayRuleCount()
+	if err != nil {
+		todayCount = 0
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":     "success",
 		"message":    "查询成功",
 		"data":       list,
-		"todayCount": 0,
+		"todayCount": todayCount,
 	})
 }
 
-// DeleteRule 删除规则
-func (h *RuleHandler) DeleteRule(c *gin.Context) {
+func DeleteRule(c *gin.Context) {
 	var req DeleteRuleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "请求参数格式错误: " + err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "请求参数格式错误: " + err.Error()})
 		return
 	}
 
+	req.ID = strings.TrimSpace(req.ID)
 	if req.ID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "规则 id 不能为空",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "规则 id 不能为空"})
 		return
 	}
 
-	if err := DeleteRuleByID(h.db, req.ID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "删除规则失败: " + err.Error(),
-		})
+	if err := DB.DeleteRuleByID(req.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "删除规则失败: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"message": "删除成功",
-	})
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "删除成功"})
 }
 
-// ValidateRule 校验规则表达式
-func (h *RuleHandler) ValidateRule(c *gin.Context) {
+func ValidateRule(c *gin.Context) {
 	var req ValidateRuleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "请求参数格式错误: " + err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "请求参数格式错误: " + err.Error()})
 		return
 	}
 
+	req.Expression = strings.TrimSpace(req.Expression)
 	if req.Expression == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "表达式不能为空",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "表达式不能为空"})
 		return
 	}
 
-	_, err := ParseRuleExpression(req.Expression)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "表达式不合法: " + err.Error(),
-		})
+	if _, err := ParseRuleExpression(req.Expression); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "表达式不合法: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"message": "表达式校验通过",
-	})
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "表达式校验通过"})
 }
 
-// RegisterRuleRoutes 注册规则相关路由
-func RegisterRuleRoutes(rg *gin.RouterGroup, db *sql.DB) {
-	handler := NewRuleHandler(db)
-	rg.POST("/create", handler.CreateRule)
-	rg.GET("/list", handler.ListRule)
-	rg.POST("/delete", handler.DeleteRule)
-	rg.POST("/validate", handler.ValidateRule)
+func RegisterRuleRoutes(rg *gin.RouterGroup) {
+	rg.POST("/create", CreateRule)
+	rg.GET("/list", ListRule)
+	rg.POST("/delete", DeleteRule)
+	rg.POST("/validate", ValidateRule)
 }

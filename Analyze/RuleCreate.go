@@ -35,6 +35,7 @@ type token struct {
 	val string
 }
 
+// lexer = tokens + pos 指针
 type lexer struct {
 	input []rune
 	pos   int
