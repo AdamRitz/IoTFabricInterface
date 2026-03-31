@@ -30,7 +30,10 @@ type ValidateRuleRequest struct {
 func CreateRule(c *gin.Context) {
 	var req CreateRuleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "请求参数格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "请求参数格式错误: " + err.Error(),
+		})
 		return
 	}
 
@@ -40,7 +43,7 @@ func CreateRule(c *gin.Context) {
 	req.Expression = strings.TrimSpace(req.Expression)
 
 	if req.ID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "规则 id 不能为空"})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "规则 ID 不能为空"})
 		return
 	}
 	if req.Name == "" {
@@ -127,9 +130,9 @@ func ListRule(c *gin.Context) {
 		}
 
 		list = append(list, gin.H{
-			"id":          rule.ID,
-			"name":        rule.Name,
-			"description": rule.Description,
+			"id":          record.ID,
+			"name":        record.Name,
+			"description": record.Description,
 			"expression":  record.Expression,
 			"enabled":     record.Enabled,
 			"priority":    record.Priority,
@@ -161,7 +164,7 @@ func DeleteRule(c *gin.Context) {
 
 	req.ID = strings.TrimSpace(req.ID)
 	if req.ID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "规则 id 不能为空"})
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "规则 ID 不能为空"})
 		return
 	}
 

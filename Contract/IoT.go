@@ -7,7 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/expr-lang/expr"
+	"github.com/antonmedv/expr"
+	"github.com/antonmedv/expr/vm"
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 )
 
@@ -23,42 +24,42 @@ type SmartContract struct {
 type Rule struct {
 	RuleID      string `json:"ruleId"`
 	Expression  string `json:"expression"`
-	Description string `json:"description,omitempty"`
+	Description string `json:"description"`
 	UpdatedTxID string `json:"updatedTxId"`
 	UpdatedAt   string `json:"updatedAt"`
 }
 
 type DeviceData struct {
-	DeviceID string         `json:"deviceId"`
-	Fields   map[string]any `json:"fields"`
+	DeviceID string                 `json:"deviceId"`
+	Fields   map[string]interface{} `json:"fields"`
 }
 
 type RuleResult struct {
 	RuleID     string `json:"ruleId"`
 	Expression string `json:"expression"`
 	Passed     bool   `json:"passed"`
-	Error      string `json:"error,omitempty"`
+	Error      string `json:"error"`
 }
 
 type DataRecord struct {
-	TxID        string         `json:"txId"`
-	DeviceID    string         `json:"deviceId"`
-	Fields      map[string]any `json:"fields"`
-	Results     []RuleResult   `json:"results"`
-	SubmittedAt string         `json:"submittedAt"`
+	TxID        string                 `json:"txId"`
+	DeviceID    string                 `json:"deviceId"`
+	Fields      map[string]interface{} `json:"fields"`
+	Results     []RuleResult           `json:"results"`
+	SubmittedAt string                 `json:"submittedAt"`
 }
 
-func normalizeJSONValue(v any) any {
+func normalizeJSONValue(v interface{}) interface{} {
 	switch x := v.(type) {
-	case map[string]any:
-		out := make(map[string]any, len(x))
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(x))
 		for k, v2 := range x {
 			out[k] = normalizeJSONValue(v2)
 		}
 		return out
 
-	case []any:
-		out := make([]any, len(x))
+	case []interface{}:
+		out := make([]interface{}, len(x))
 		for i, v2 := range x {
 			out[i] = normalizeJSONValue(v2)
 		}
@@ -78,6 +79,24 @@ func normalizeJSONValue(v any) any {
 	}
 }
 
+func buildCompileEnv() map[string]interface{} {
+	return map[string]interface{}{
+		"deviceId": "",
+		"has": func(string) bool {
+			return false
+		},
+	}
+}
+
+func compileRule(expression string) (*vm.Program, error) {
+	return expr.Compile(
+		expression,
+		expr.Env(buildCompileEnv()),
+		expr.AsBool(),
+		expr.AllowUndefinedVariables(),
+	)
+}
+
 func (c *SmartContract) UpsertRule(
 	ctx contractapi.TransactionContextInterface,
 	ruleID string,
@@ -91,10 +110,7 @@ func (c *SmartContract) UpsertRule(
 		return fmt.Errorf("expression is required")
 	}
 
-	_, err := expr.Compile(
-		expression,
-		expr.Env(map[string]any{"deviceId": "", "has": func(string) bool { return false }}), expr.AsBool(), expr.AllowUndefinedVariables(), expr.DisableAllBuiltins(),
-	)
+	_, err := compileRule(expression)
 	if err != nil {
 		return fmt.Errorf("invalid expr rule: %w", err)
 	}
@@ -104,13 +120,19 @@ func (c *SmartContract) UpsertRule(
 		return fmt.Errorf("failed to get tx timestamp: %w", err)
 	}
 
-	rule := Rule{ruleID, expression, description, ctx.GetStub().GetTxID(), time.Unix(ts.Seconds, int64(ts.Nanos)).UTC().Format(time.RFC3339Nano)}
+	rule := Rule{
+		RuleID:      ruleID,
+		Expression:  expression,
+		Description: description,
+		UpdatedTxID: ctx.GetStub().GetTxID(),
+		UpdatedAt:   time.Unix(ts.Seconds, int64(ts.Nanos)).UTC().Format(time.RFC3339Nano),
+	}
 
 	raw, err := json.Marshal(rule)
 	if err != nil {
 		return fmt.Errorf("failed to marshal rule: %w", err)
 	}
-	// 存储的是 rule:ID
+
 	if err := ctx.GetStub().PutState("rule:"+ruleID, raw); err != nil {
 		return fmt.Errorf("failed to save rule: %w", err)
 	}
@@ -158,7 +180,7 @@ func (c *SmartContract) DeleteRule(ctx contractapi.TransactionContextInterface, 
 		}
 
 		if err := ctx.GetStub().DelState(kv.Key); err != nil {
-			return fmt.Errorf("failed to delete device reverse binding: %w", err)
+			return fmt.Errorf("failed to delete rule reverse binding: %w", err)
 		}
 	}
 
@@ -184,6 +206,34 @@ func (c *SmartContract) GetRule(ctx contractapi.TransactionContextInterface, rul
 	}
 
 	return &rule, nil
+}
+
+func (c *SmartContract) ListAllRules(ctx contractapi.TransactionContextInterface) ([]Rule, error) {
+	iter, err := ctx.GetStub().GetStateByRange("rule:", "rule;")
+	if err != nil {
+		return nil, fmt.Errorf("failed to query all rules: %w", err)
+	}
+	defer iter.Close()
+
+	rules := make([]Rule, 0)
+	for iter.HasNext() {
+		kv, err := iter.Next()
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate all rules: %w", err)
+		}
+
+		var rule Rule
+		if err := json.Unmarshal(kv.Value, &rule); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal rule from key %s: %w", kv.Key, err)
+		}
+		rules = append(rules, rule)
+	}
+
+	sort.Slice(rules, func(i, j int) bool {
+		return rules[i].RuleID < rules[j].RuleID
+	})
+
+	return rules, nil
 }
 
 func (c *SmartContract) BindRuleToDevice(
@@ -216,10 +266,10 @@ func (c *SmartContract) BindRuleToDevice(
 
 	reverseKey, err := ctx.GetStub().CreateCompositeKey(RuleToDevice, []string{ruleID, deviceID})
 	if err != nil {
-		return fmt.Errorf("failed to create device reverse binding key: %w", err)
+		return fmt.Errorf("failed to create rule reverse binding key: %w", err)
 	}
 	if err := ctx.GetStub().PutState(reverseKey, []byte{0}); err != nil {
-		return fmt.Errorf("failed to save device reverse binding: %w", err)
+		return fmt.Errorf("failed to save rule reverse binding: %w", err)
 	}
 
 	return nil
@@ -247,10 +297,10 @@ func (c *SmartContract) UnbindRuleFromDevice(
 
 	reverseKey, err := ctx.GetStub().CreateCompositeKey(RuleToDevice, []string{ruleID, deviceID})
 	if err != nil {
-		return fmt.Errorf("failed to create device reverse binding key: %w", err)
+		return fmt.Errorf("failed to create rule reverse binding key: %w", err)
 	}
 	if err := ctx.GetStub().DelState(reverseKey); err != nil {
-		return fmt.Errorf("failed to delete device reverse binding: %w", err)
+		return fmt.Errorf("failed to delete rule reverse binding: %w", err)
 	}
 
 	return nil
@@ -318,8 +368,8 @@ func (c *SmartContract) SubmitData(
 	ctx contractapi.TransactionContextInterface,
 	dataJSON string,
 ) (*DataRecord, error) {
-	// 解析 JSON 数据
 	var data DeviceData
+
 	dec := json.NewDecoder(bytes.NewBufferString(dataJSON))
 	dec.UseNumber()
 
@@ -332,21 +382,21 @@ func (c *SmartContract) SubmitData(
 	}
 
 	if data.Fields == nil {
-		data.Fields = map[string]any{}
+		data.Fields = map[string]interface{}{}
 	}
 
-	normalized, ok := normalizeJSONValue(data.Fields).(map[string]any)
+	normalized, ok := normalizeJSONValue(data.Fields).(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("fields must be a json object")
 	}
 	data.Fields = normalized
-	// 按 ID 查找规则
+
 	rules, err := c.ListRulesForDevice(ctx, data.DeviceID)
 	if err != nil {
 		return nil, err
 	}
 
-	env := map[string]any{
+	env := map[string]interface{}{
 		"deviceId": data.DeviceID,
 	}
 	for k, v := range data.Fields {
@@ -358,13 +408,10 @@ func (c *SmartContract) SubmitData(
 	}
 
 	results := make([]RuleResult, 0, len(rules))
-	// 编译并执行规则
+
 	for _, rule := range rules {
-		// 编译规则
-		program, err := expr.Compile(
-			rule.Expression,
-			expr.Env(map[string]any{"deviceId": "", "has": func(string) bool { return false }}), expr.AsBool(), expr.AllowUndefinedVariables(), expr.DisableAllBuiltins(),
-		)
+		// 取出编译规则
+		program, err := compileRule(rule.Expression)
 		if err != nil {
 			results = append(results, RuleResult{
 				RuleID:     rule.RuleID,
@@ -374,7 +421,7 @@ func (c *SmartContract) SubmitData(
 			})
 			continue
 		}
-		// 执行规则
+		// 运行规则
 		out, err := expr.Run(program, env)
 		if err != nil {
 			results = append(results, RuleResult{
@@ -385,16 +432,19 @@ func (c *SmartContract) SubmitData(
 			})
 			continue
 		}
-
+		// 执行结果为真就发送事件
 		passed, ok := out.(bool)
 		if !ok {
 			results = append(results, RuleResult{
 				RuleID:     rule.RuleID,
 				Expression: rule.Expression,
 				Passed:     false,
-				Error:      "expr result is not bool",
+				Error:      fmt.Sprintf("expr result is not bool, got %T", out),
 			})
 			continue
+		}
+		if passed {
+			ctx.GetStub().SetEvent(data.DeviceID, []byte(rule.RuleID))
 		}
 
 		results = append(results, RuleResult{

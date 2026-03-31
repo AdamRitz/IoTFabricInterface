@@ -3,6 +3,7 @@ package Web
 import (
 	DataAnalyze "FabricInterface/Analyze"
 	"FabricInterface/DB"
+	"FabricInterface/Fabric"
 	"database/sql"
 	"errors"
 	"github.com/go-sql-driver/mysql"
@@ -29,6 +30,9 @@ func InitWeb() {
 
 	ruleGroup := r.Group("/rule")
 	DataAnalyze.RegisterRuleRoutes(ruleGroup)
+
+	fabricGroup := r.Group("/fabric")
+	Fabric.RegisterFabricRoutes(fabricGroup)
 
 	r.GET("/GetTxNumber7", GetTxNumber7)
 	r.GET("/GetChainHeight", GetChainHeight)
@@ -138,7 +142,7 @@ func AddOracle(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":      "success",
-		"message":     "预言机添加成功",
+		"message":     "棰勮█鏈烘坊鍔犳垚鍔?",
 		"txId":        "centralized-oracle-" + req.OracleID,
 		"blockNumber": 0,
 	})
@@ -230,7 +234,7 @@ func AddOracleDevice(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":      "success",
-		"message":     "设备添加成功",
+		"message":     "璁惧娣诲姞鎴愬姛",
 		"txId":        "centralized-device-" + req.DeviceID,
 		"blockNumber": 0,
 	})

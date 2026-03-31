@@ -1,60 +1,58 @@
 package Fabric
 
 import (
-	"FabricInterface/Crypto"
 	"FabricInterface/DB"
 	"FabricInterface/Logger"
-	pb "FabricInterface/Protoc"
-	"FabricInterface/ThingsBoard"
+	"FabricInterface/Modbus"
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
 	"github.com/hyperledger/fabric-gateway/pkg/client"
-	"google.golang.org/protobuf/proto"
 	"log"
-	"strconv"
 	"time"
 )
 
-func ListenEvent(network *client.Network, client pb.ProtoServiceClient) {
-	chaincodeName := "IoT4"
+func ListenContractEvent(network *client.Network, chaincodeName string) {
 	ctx := context.Background()
 	events, err := network.ChaincodeEvents(ctx, chaincodeName /*, client.WithStartBlock(0)*/)
 	if err != nil {
 		log.Fatalf("chaincode events failed: %s", err)
 	}
-	Logger.Infoln("📡 事件监听已启动：chaincode=%s\n", chaincodeName)
+	Logger.Infof("📡 事件监听已启动：chaincode=%s\n", chaincodeName)
 	// for select 并行等待数据
 	for {
 		select {
 		case ev, ok := <-events:
-			Logger.Infoln(" 事件: name=%s tx=%s block=%d", ev.EventName, ev.TransactionID, ev.BlockNumber)
+			Logger.Infof(" 事件: name=%s tx=%s block=%d", ev.EventName, ev.TransactionID, ev.BlockNumber)
 			if !ok {
 				Logger.Infoln("✅ 事件通道已关闭，退出监听")
 				return
 			} else if ev == nil {
 				Logger.Infoln(" 收到 nil 事件，忽略")
 				continue
-			} else if ev.EventName == "Data" {
-
-				Logger.Infoln("正在解密数据")
-				var d DeviceData
-				if err := json.Unmarshal(ev.Payload, &d); err != nil {
-					log.Fatal("Event JSON decode error:", err)
-				}
-
-				var ct pb.CTMessage
-				ctRaw, _ := base64.StdEncoding.DecodeString(d.Value)
-				if err := proto.Unmarshal(ctRaw, &ct); err != nil {
-					log.Fatal("CTMessage UnSerialize Error:", err)
-				}
-				str := Crypto.GetDecData(client, &ct)
-				data, _ := strconv.ParseFloat(str, 32)
-				ThingsBoard.SendToThingsBoard(float32(data), d.Time)
-				fmt.Println(string(str), d.Time)
-
+			} else if ev.EventName == "dev-001" {
+				println("dev-001 Event Received")
+			} else if ev.EventName == "dev-002" {
+				println("dev-002 Event Received", string(ev.Payload))
+				Modbus.WritePLC()
 			}
+			//} else if ev.EventName == "Data" {
+			//
+			//	Logger.Infoln("正在解密数据")
+			//	var d DeviceData
+			//	if err := json.Unmarshal(ev.Payload, &d); err != nil {
+			//		log.Fatal("Event JSON decode error:", err)
+			//	}
+			//
+			//	var ct pb.CTMessage
+			//	ctRaw, _ := base64.StdEncoding.DecodeString(d.Value)
+			//	if err := proto.Unmarshal(ctRaw, &ct); err != nil {
+			//		log.Fatal("CTMessage UnSerialize Error:", err)
+			//	}
+			//	str := Crypto.GetDecData(client, &ct)
+			//	data, _ := strconv.ParseFloat(str, 32)
+			//	ThingsBoard.SendToThingsBoard(float32(data), d.Time)
+			//	fmt.Println(string(str), d.Time)
+			//
+			//}
 		case <-ctx.Done():
 			Logger.Infoln("🛑 上下文取消，退出监听")
 			return
@@ -65,6 +63,56 @@ func ListenEvent(network *client.Network, client pb.ProtoServiceClient) {
 	}
 
 }
+
+//func ListenContractEvent(network *client.Network, client pb.ProtoServiceClient) {
+//	chaincodeName := "IoT4"
+//	ctx := context.Background()
+//	events, err := network.ChaincodeEvents(ctx, chaincodeName /*, client.WithStartBlock(0)*/)
+//	if err != nil {
+//		log.Fatalf("chaincode events failed: %s", err)
+//	}
+//	Logger.Infoln("📡 事件监听已启动：chaincode=%s\n", chaincodeName)
+//	// for select 并行等待数据
+//	for {
+//		select {
+//		case ev, ok := <-events:
+//			Logger.Infoln(" 事件: name=%s tx=%s block=%d", ev.EventName, ev.TransactionID, ev.BlockNumber)
+//			if !ok {
+//				Logger.Infoln("✅ 事件通道已关闭，退出监听")
+//				return
+//			} else if ev == nil {
+//				Logger.Infoln(" 收到 nil 事件，忽略")
+//				continue
+//			}
+//			//} else if ev.EventName == "Data" {
+//			//
+//			//	Logger.Infoln("正在解密数据")
+//			//	var d DeviceData
+//			//	if err := json.Unmarshal(ev.Payload, &d); err != nil {
+//			//		log.Fatal("Event JSON decode error:", err)
+//			//	}
+//			//
+//			//	var ct pb.CTMessage
+//			//	ctRaw, _ := base64.StdEncoding.DecodeString(d.Value)
+//			//	if err := proto.Unmarshal(ctRaw, &ct); err != nil {
+//			//		log.Fatal("CTMessage UnSerialize Error:", err)
+//			//	}
+//			//	str := Crypto.GetDecData(client, &ct)
+//			//	data, _ := strconv.ParseFloat(str, 32)
+//			//	ThingsBoard.SendToThingsBoard(float32(data), d.Time)
+//			//	fmt.Println(string(str), d.Time)
+//			//
+//			//}
+//		case <-ctx.Done():
+//			Logger.Infoln("🛑 上下文取消，退出监听")
+//			return
+//		default:
+//
+//		}
+//
+//	}
+//
+//}
 
 type BlockStat struct {
 	BlockchainID string
