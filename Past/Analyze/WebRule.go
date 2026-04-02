@@ -2,9 +2,9 @@ package DataAnalyze
 
 import (
 	"FabricInterface/DB"
-	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -69,29 +69,12 @@ func CreateRule(c *gin.Context) {
 	}
 	rule.Enabled = req.Enabled
 
-	ruleBytes, err := json.Marshal(rule)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "规则序列化失败: " + err.Error()})
-		return
-	}
-
-	tagsBytes, err := json.Marshal(rule.Tags)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "规则标签序列化失败: " + err.Error()})
-		return
-	}
-
 	if err := DB.UpsertRule(DB.RuleRecord{
-		ID:          rule.ID,
-		Name:        rule.Name,
+		RuleID:      rule.ID,
 		Description: rule.Description,
 		Expression:  req.Expression,
-		RuleJSON:    string(ruleBytes),
-		Enabled:     rule.Enabled,
-		Priority:    rule.Priority,
-		TagsJSON:    string(tagsBytes),
-		CreatedAt:   rule.CreatedAt,
-		UpdatedAt:   rule.UpdatedAt,
+		UpdatedTxID: "",
+		UpdatedAt:   rule.UpdatedAt.Format(time.RFC3339Nano),
 	}); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "创建规则失败: " + err.Error()})
 		return
@@ -123,21 +106,14 @@ func ListRule(c *gin.Context) {
 
 	list := make([]gin.H, 0, len(records))
 	for _, record := range records {
-		var rule RuleSet
-		if err := json.Unmarshal([]byte(record.RuleJSON), &rule); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "解析规则数据失败: " + err.Error()})
-			return
-		}
-
 		list = append(list, gin.H{
-			"id":          record.ID,
-			"name":        record.Name,
+			"id":          record.RuleID,
+			"name":        record.RuleID,
 			"description": record.Description,
 			"expression":  record.Expression,
-			"enabled":     record.Enabled,
-			"priority":    record.Priority,
-			"tags":        rule.Tags,
-			"createdAt":   record.CreatedAt,
+			"enabled":     true,
+			"priority":    0,
+			"tags":        []string{},
 			"updatedAt":   record.UpdatedAt,
 		})
 	}

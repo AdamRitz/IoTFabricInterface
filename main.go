@@ -5,59 +5,13 @@ import (
 	"FabricInterface/Fabric"
 	"FabricInterface/Logger"
 	"FabricInterface/Modbus"
-	pb "FabricInterface/Protoc"
-	"FabricInterface/Service"
 	"FabricInterface/Web"
-
-	"fmt"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"log"
 
 	"time"
 )
 
-var now = time.Now()
-var assetId = fmt.Sprintf("asset%d", now.Unix()*1e3+int64(now.Nanosecond())/1e6)
-
-func Init(addr string) pb.ProtoServiceClient {
-	conn, err := grpc.NewClient(addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		log.Fatalf("NewClient: %v", err)
-		return nil
-	}
-	client := pb.NewProtoServiceClient(conn)
-	return client
-}
-
-//func Sensor(contract *client.Contract, client pb.ProtoServiceClient) {
-//	for {
-//		t, _ := rand.Int(rand.Reader, big.NewInt(23))
-//		x := int(t.Int64()) + 20
-//		fmt.Println("鍔犲瘑鏁版嵁", strconv.Itoa(x))
-//		rawData := Crypto.GetEncData(client, strconv.Itoa(x))
-//		Fabric.UploadEncData(contract, string(rawData), time.Now().Unix()*1000)
-//		time.Sleep(1 * time.Second)
-//	}
-//}
-
-//	func pastMain() {
-//		client := Init("127.0.0.1:50051")
-//		network, wg, clientConnection, gw := Fabric.BlockchainInit()
-//		Fabric.InitContract("IoT7", network)
-//		defer clientConnection.Close()
-//		defer gw.Close()
-//		contract := network.GetContract("IoT4")
-//		go Fabric.ListenEvent(network, client)
-//		time.Sleep(2 * time.Second)
-//		go Sensor(contract, client)
-//
-//		wg.Wait()
-//	}
-var chaincodename = "IoT11"
+var chaincodename = "IoT17"
 
 func main() {
 	// 初始化日志
@@ -84,7 +38,7 @@ func main() {
 	Modbus.ModbusInit()
 	time.Sleep(2 * time.Second)
 	// 开启 PLC数据上链服务
-	Service.PeriodicQueryPLC()
+	//Service.PeriodicQueryPLC()
 
 	wg.Wait()
 }

@@ -1,6 +1,7 @@
 package Fabric
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -21,6 +22,7 @@ type RuleBindRequest struct {
 type SubmitDataRequest struct {
 	DeviceID string                 `json:"deviceId" binding:"required"`
 	Fields   map[string]interface{} `json:"fields" binding:"required"`
+	Results  []RuleResult           `json:"results"`
 }
 
 const displayTimeLayout = "2006-01-02 15:04:05"
@@ -67,11 +69,30 @@ func formatRecordForResponse(record *DataRecord) gin.H {
 		return nil
 	}
 	return gin.H{
-		"txId":        record.TxID,
-		"deviceId":    record.DeviceID,
-		"fields":      record.Fields,
-		"results":     record.Results,
-		"submittedAt": formatDisplayTime(record.SubmittedAt),
+		"txId":            record.TxID,
+		"deviceId":        record.DeviceID,
+		"fields":          record.Fields,
+		"results":         record.Results,
+		"submittedAt":     formatDisplayTime(record.SubmittedAt),
+		"submittedAtUnix": record.SubmittedAtUnix,
+		"submitterId":     record.SubmitterID,
+		"submitterMsp":    record.SubmitterMSP,
+	}
+}
+
+func formatDataPageForResponse(page *DataPage) gin.H {
+	if page == nil {
+		return gin.H{"records": []gin.H{}, "bookmark": "", "fetchedRecordsCount": 0}
+	}
+	records := make([]gin.H, 0, len(page.Records))
+	for _, item := range page.Records {
+		record := item
+		records = append(records, formatRecordForResponse(&record))
+	}
+	return gin.H{
+		"records":             records,
+		"bookmark":            page.Bookmark,
+		"fetchedRecordsCount": page.FetchedRecordsCount,
 	}
 }
 
@@ -87,6 +108,8 @@ func RegisterFabricRoutes(rg *gin.RouterGroup) {
 
 	rg.POST("/data", SubmitData)
 	rg.GET("/data/:txId", GetData)
+	rg.GET("/data/page/by-time", QueryDataPageByTime)
+	rg.GET("/data/page/by-device", QueryDataPageByDevice)
 }
 
 func ensureContractReady(c *gin.Context) bool {
@@ -129,6 +152,7 @@ func CreateRule(c *gin.Context) {
 			"msg":  "规则写入失败",
 			"err":  err.Error(),
 		})
+		log.Println("规则写入失败")
 		return
 	}
 
@@ -136,6 +160,7 @@ func CreateRule(c *gin.Context) {
 		"code": 0,
 		"msg":  "规则写入成功",
 	})
+	log.Println("规则写入成功")
 }
 
 func GetRule(c *gin.Context) {
@@ -268,7 +293,7 @@ func SubmitData(c *gin.Context) {
 		return
 	}
 
-	record, err := ContractSubmitDeviceData(req.DeviceID, req.Fields)
+	record, err := ContractSubmitDeviceData(req.DeviceID, req.Fields, req.Results)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code": 2,
@@ -313,5 +338,55 @@ func GetData(c *gin.Context) {
 		"code": 0,
 		"msg":  "查询成功",
 		"data": formatRecordForResponse(record),
+	})
+}
+
+func QueryDataPageByTime(c *gin.Context) {
+	if !ensureContractReady(c) {
+		return
+	}
+	bookmark := c.Query("bookmark")
+	page, err := ContractQueryDataPageByTime(bookmark)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code": 2,
+			"msg":  "分页查询数据失败",
+			"err":  err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"msg":  "查询成功",
+		"data": formatDataPageForResponse(page),
+	})
+}
+
+func QueryDataPageByDevice(c *gin.Context) {
+	if !ensureContractReady(c) {
+		return
+	}
+	deviceID := c.Query("deviceId")
+	if deviceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 1,
+			"msg":  "deviceId 不能为空",
+		})
+		return
+	}
+	bookmark := c.Query("bookmark")
+	page, err := ContractQueryDataPageByDevice(deviceID, bookmark)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code": 2,
+			"msg":  "按设备分页查询数据失败",
+			"err":  err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"msg":  "查询成功",
+		"data": formatDataPageForResponse(page),
 	})
 }

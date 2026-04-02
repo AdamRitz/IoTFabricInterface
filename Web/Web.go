@@ -1,7 +1,6 @@
 package Web
 
 import (
-	DataAnalyze "FabricInterface/Analyze"
 	"FabricInterface/DB"
 	"FabricInterface/Fabric"
 	"database/sql"
@@ -27,9 +26,6 @@ func InitWeb() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
-
-	ruleGroup := r.Group("/rule")
-	DataAnalyze.RegisterRuleRoutes(ruleGroup)
 
 	fabricGroup := r.Group("/fabric")
 	Fabric.RegisterFabricRoutes(fabricGroup)
@@ -142,7 +138,7 @@ func AddOracle(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":      "success",
-		"message":     "棰勮█鏈烘坊鍔犳垚鍔?",
+		"message":     "预言机添加成功",
 		"txId":        "centralized-oracle-" + req.OracleID,
 		"blockNumber": 0,
 	})
@@ -234,7 +230,7 @@ func AddOracleDevice(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":      "success",
-		"message":     "璁惧娣诲姞鎴愬姛",
+		"message":     "设备添加成功",
 		"txId":        "centralized-device-" + req.DeviceID,
 		"blockNumber": 0,
 	})

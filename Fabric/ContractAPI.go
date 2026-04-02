@@ -21,24 +21,27 @@ type Rule struct {
 	UpdatedAt   string `json:"updatedAt"`
 }
 
-type RuleResult struct {
-	RuleID     string `json:"ruleId"`
-	Expression string `json:"expression"`
-	Passed     bool   `json:"passed"`
-	Error      string `json:"error"`
+type DataRecord struct {
+	TxID            string                 `json:"txId"`
+	DeviceID        string                 `json:"deviceId"`
+	Fields          map[string]interface{} `json:"fields"`
+	Results         []RuleResult           `json:"results"`
+	SubmittedAt     string                 `json:"submittedAt"`
+	SubmittedAtUnix int64                  `json:"submittedAtUnix"`
+	SubmitterID     string                 `json:"submitterId"`
+	SubmitterMSP    string                 `json:"submitterMsp"`
 }
 
-type DataRecord struct {
-	TxID        string                 `json:"txId"`
-	DeviceID    string                 `json:"deviceId"`
-	Fields      map[string]interface{} `json:"fields"`
-	Results     []RuleResult           `json:"results"`
-	SubmittedAt string                 `json:"submittedAt"`
+type DataPage struct {
+	Records             []DataRecord `json:"records"`
+	Bookmark            string       `json:"bookmark"`
+	FetchedRecordsCount int32        `json:"fetchedRecordsCount"`
 }
 
 type SubmitDeviceDataRequest struct {
 	DeviceID string                 `json:"deviceId"`
 	Fields   map[string]interface{} `json:"fields"`
+	Results  []RuleResult           `json:"results"`
 }
 
 func InitFabric() {
@@ -173,18 +176,25 @@ func ContractListRulesForDevice(deviceID string) ([]Rule, error) {
 	return rules, nil
 }
 
-func ContractSubmitDeviceData(deviceID string, fields map[string]interface{}) (*DataRecord, error) {
-	req := SubmitDeviceDataRequest{
-		DeviceID: deviceID,
-		Fields:   fields,
+func ContractSubmitDeviceData(deviceID string, fields map[string]interface{}, results []RuleResult) (*DataRecord, error) {
+	if fields == nil {
+		fields = map[string]interface{}{}
+	}
+	if results == nil {
+		results = []RuleResult{}
 	}
 
-	jsonData, err := json.Marshal(req)
+	fieldsJSON, err := json.Marshal(fields)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal device data: %w", err)
+		return nil, fmt.Errorf("failed to marshal fields: %w", err)
 	}
 
-	data, err := contract.SubmitTransaction("SubmitData", string(jsonData))
+	resultsJSON, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal results: %w", err)
+	}
+
+	data, err := contract.SubmitTransaction("SubmitData", deviceID, string(fieldsJSON), string(resultsJSON))
 	if err != nil {
 		dumpGatewayError(err)
 		return nil, fmt.Errorf("SubmitData transaction failed: %w", err)
@@ -209,4 +219,32 @@ func ContractGetData(txID string) (*DataRecord, error) {
 		return nil, err
 	}
 	return &record, nil
+}
+
+func ContractQueryDataPageByTime(bookmark string) (*DataPage, error) {
+	data, err := contract.EvaluateTransaction("QueryDataPageByTime", bookmark)
+	if err != nil {
+		dumpGatewayError(err)
+		return nil, fmt.Errorf("QueryDataPageByTime transaction failed: %w", err)
+	}
+	var page DataPage
+	err = unmarshalJSON(data, &page)
+	if err != nil {
+		return nil, err
+	}
+	return &page, nil
+}
+
+func ContractQueryDataPageByDevice(deviceID, bookmark string) (*DataPage, error) {
+	data, err := contract.EvaluateTransaction("QueryDataPageByDevice", deviceID, bookmark)
+	if err != nil {
+		dumpGatewayError(err)
+		return nil, fmt.Errorf("QueryDataPageByDevice transaction failed: %w", err)
+	}
+	var page DataPage
+	err = unmarshalJSON(data, &page)
+	if err != nil {
+		return nil, err
+	}
+	return &page, nil
 }

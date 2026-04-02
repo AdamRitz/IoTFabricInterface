@@ -1,7 +1,7 @@
 package Crypto
 
 import (
-	pb "FabricInterface/Protoc"
+	"FabricInterface/Past/Protoc"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -22,11 +22,11 @@ func TestAll(addr string) error {
 	}
 	defer conn.Close()
 
-	client := pb.NewProtoServiceClient(conn)
+	client := Protoc.NewProtoServiceClient(conn)
 
 	// 2) GetUSK
 	attributeVec := []bool{true, false, false, true, false}
-	attrMsg := &pb.AttributeMessage{}
+	attrMsg := &Protoc.AttributeMessage{}
 	for _, b := range attributeVec {
 		attrMsg.Attribute = append(attrMsg.Attribute, b)
 	}
@@ -55,8 +55,8 @@ func TestAll(addr string) error {
 	}
 
 	// 4) EncData
-	in := &pb.DataMessage{Data: []byte(makeString('A', 256))}
-	var ct *pb.CTMessage
+	in := &Protoc.DataMessage{Data: []byte(makeString('A', 256))}
+	var ct *Protoc.CTMessage
 	var tEnc time.Duration
 
 	{
@@ -72,7 +72,7 @@ func TestAll(addr string) error {
 	}
 
 	// 5) DecData
-	var out *pb.DataMessage
+	var out *Protoc.DataMessage
 	var tDec time.Duration
 
 	{
@@ -106,9 +106,9 @@ func Test() {
 		log.Fatal(err)
 	}
 }
-func GetEncData(client pb.ProtoServiceClient, a string) []byte {
-	in := &pb.DataMessage{Data: []byte(a)}
-	var ct *pb.CTMessage
+func GetEncData(client Protoc.ProtoServiceClient, a string) []byte {
+	in := &Protoc.DataMessage{Data: []byte(a)}
+	var ct *Protoc.CTMessage
 	{
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -117,7 +117,7 @@ func GetEncData(client pb.ProtoServiceClient, a string) []byte {
 		return raw
 	}
 }
-func GetDecData(client pb.ProtoServiceClient, ct *pb.CTMessage) string {
+func GetDecData(client Protoc.ProtoServiceClient, ct *Protoc.CTMessage) string {
 
 	{
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -131,9 +131,9 @@ func GetDecData(client pb.ProtoServiceClient, ct *pb.CTMessage) string {
 		return string(out.Data)
 	}
 }
-func TestEnc(client pb.ProtoServiceClient) {
+func TestEnc(client Protoc.ProtoServiceClient) {
 	attributeVec := []bool{true, false, false, true, false}
-	attrMsg := &pb.AttributeMessage{}
+	attrMsg := &Protoc.AttributeMessage{}
 	for _, b := range attributeVec {
 		attrMsg.Attribute = append(attrMsg.Attribute, b)
 	}
@@ -162,7 +162,7 @@ func TestEnc(client pb.ProtoServiceClient) {
 			log.Println("SetKey Success!")
 		}
 	}
-	var b *pb.CTMessage
+	var b *Protoc.CTMessage
 	for {
 		a := ""
 
@@ -170,8 +170,8 @@ func TestEnc(client pb.ProtoServiceClient) {
 		if a == "Enc" {
 			message := ""
 			fmt.Scanln(&message)
-			in := &pb.DataMessage{Data: []byte(message)}
-			var ct *pb.CTMessage
+			in := &Protoc.DataMessage{Data: []byte(message)}
+			var ct *Protoc.CTMessage
 			{
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel()
@@ -191,7 +191,7 @@ func TestEnc(client pb.ProtoServiceClient) {
 			}
 		} else if a == "getpp" {
 			{
-				t := pb.EmptyMessage{}
+				t := Protoc.EmptyMessage{}
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel()
 				client.GetPP(ctx, &t)

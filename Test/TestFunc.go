@@ -17,7 +17,7 @@ func ReadPLC() float32 {
 	data := map[string]interface{}{
 		"temperature": floatVal,
 	}
-	Fabric.ContractSubmitDeviceData("dev-001", data)
+	Fabric.ContractSubmitDeviceData("dev-001", data, nil)
 	return floatVal
 }
 func WritePLC() {

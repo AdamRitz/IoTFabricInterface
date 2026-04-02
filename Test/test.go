@@ -3,31 +3,26 @@ package main
 import (
 	"fmt"
 
-	"github.com/expr-lang/expr"
+	"github.com/hyperledger/fabric-chaincode-go/shim"
 )
 
 func main() {
-	env := map[string]any{
-		"temp":      45,
-		"valveOpen": true,
-	}
+	objectType := "idx~data~time~txId"
+	rk := "9223372035089675807"
+	txID := "abc123"
 
-	code := `temp > 40 && valveOpen == true`
-
-	program, err := expr.Compile(code, expr.Env(env))
+	key, err := shim.CreateCompositeKey(objectType, []string{rk, txID})
 	if err != nil {
 		panic(err)
 	}
 
-	output, err := expr.Run(program, env)
-	if err != nil {
-		panic(err)
-	}
-	output, err = expr.Run(program, map[string]any{
-		"valveOpen": true,
-	})
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(output) // true
+	fmt.Println("1) 直接打印:")
+	fmt.Println(key)
+
+	fmt.Println("\n2) 用 %q 打印，能看见转义后的样子:")
+	fmt.Printf("%q\n", key)
+
+	fmt.Println("\n3) 打印字节值:")
+	fmt.Printf("%v\n", []byte(key))
+
 }
